@@ -1,11 +1,13 @@
 'use client'
 import { useState, useEffect } from 'react'
+import TTSPlayer from '@/components/TTSPlayer'
 
 const MAX_CHARS = 5000
 const DAILY_LIMIT = 5
 
 const SAMPLE_TEXT = `[music]
-Scene 1: Office buildingThe CEO enters the room and looks at the boss.
+Scene 1: Office building
+The CEO enters the room and looks at the boss.
 Boss: We must expand our company drama production immediately.
 Female lead: I disagree, we should focus on the quality first.
 Male lead: She is right, let's take our time.
@@ -22,8 +24,9 @@ export default function TranslatePage() {
   const [maleLead, setMaleLead] = useState('မင်းသား')
   const [history, setHistory] = useState([])
   const [todayCount, setTodayCount] = useState(0)
+  const [showTTS, setShowTTS] = useState(false)
 
-  // Load from localStorage
+  // ===== Load from localStorage =====
   useEffect(() => {
     const saved = localStorage.getItem('translateHistory')
     if (saved) setHistory(JSON.parse(saved))
@@ -45,11 +48,16 @@ export default function TranslatePage() {
     localStorage.setItem('translateCount', newCount.toString())
   }
 
+  // ===== Translate =====
   const handleTranslate = async () => {
     if (!inputText.trim()) return setError('ဘာသာပြန်ရန် စာသားထည့်ပါ')
-    if (inputText.length > MAX_CHARS) return setError(`စာလုံး ${MAX_CHARS} ထက် မကျော်ရပါ`)
+    if (inputText.length > MAX_CHARS)
+      return setError(`စာလုံး ${MAX_CHARS} ထက် မကျော်ရပါ`)
 
-    setLoading(true); setError(''); setOutputText('')
+    setLoading(true)
+    setError('')
+    setOutputText('')
+    setShowTTS(false)
 
     try {
       const res = await fetch('/api/translate', {
@@ -74,10 +82,15 @@ export default function TranslatePage() {
         input: inputText,
         output: data.translation,
         chars: inputText.length,
-        time: new Date().toLocaleString('en-GB', {
-          day: '2-digit', month: '2-digit', year: 'numeric',
-          hour: '2-digit', minute: '2-digit'
-        }).replace(',', ''),
+        time: new Date()
+          .toLocaleString('en-GB', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+          .replace(',', ''),
       }
       const updated = [newItem, ...history].slice(0, 30)
       setHistory(updated)
@@ -89,8 +102,14 @@ export default function TranslatePage() {
     }
   }
 
+  // ===== Helpers =====
   const loadSample = () => setInputText(SAMPLE_TEXT)
-  const clearAll = () => { setInputText(''); setOutputText(''); setError('') }
+  const clearAll = () => {
+    setInputText('')
+    setOutputText('')
+    setError('')
+    setShowTTS(false)
+  }
 
   const copyText = (text) => {
     navigator.clipboard.writeText(text)
@@ -110,13 +129,8 @@ export default function TranslatePage() {
   const recallItem = (item) => {
     setInputText(item.input)
     setOutputText(item.output)
+    setShowTTS(false)
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  const deleteHistoryItem = (id) => {
-    const updated = history.filter((h) => h.id !== id)
-    setHistory(updated)
-    localStorage.setItem('translateHistory', JSON.stringify(updated))
   }
 
   const clearHistory = () => {
@@ -132,31 +146,30 @@ export default function TranslatePage() {
       .split('\n')
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
-      .map((line) => {
-        // ရှိပြီးသား "- " ကို duplicate မလုပ်ရ
-        return line.startsWith('-') ? line : `- ${line}`
-      })
+      .map((line) => (line.startsWith('-') ? line : `- ${line}`))
   }
 
   return (
     <div className="max-w-3xl mx-auto pb-40">
-
       {/* ===== INPUT CARD ===== */}
       <div className="bg-[#0d1220] border border-[#1f2937] rounded-2xl p-5 mb-5">
-        {/* Header Row */}
         <div className="flex flex-wrap items-center gap-2 mb-4">
           <span className="text-yellow-400 text-xl">📄</span>
           <h2 className="font-bold text-white leading-tight">
-            Input Source<br />Text:
+            Input Source
+            <br />
+            Text:
           </h2>
           <span className="text-xs font-bold bg-yellow-400/10 text-yellow-400 border border-yellow-400/30 px-3 py-1.5 rounded-full whitespace-nowrap">
-            Today:<br className="sm:hidden" /> {todayCount}/{DAILY_LIMIT}
+            Today:
+            <br className="sm:hidden" /> {todayCount}/{DAILY_LIMIT}
           </span>
           <button
             onClick={loadSample}
             className="text-xs font-bold bg-yellow-400/10 hover:bg-yellow-400/20 text-yellow-400 border border-yellow-400/30 px-3 py-2 rounded-lg transition leading-tight"
           >
-            Load<br className="sm:hidden" /> Sample
+            Load
+            <br className="sm:hidden" /> Sample
           </button>
           <button
             onClick={clearAll}
@@ -166,7 +179,6 @@ export default function TranslatePage() {
           </button>
         </div>
 
-        {/* Textarea */}
         <textarea
           value={inputText}
           onChange={(e) => setInputText(e.target.value.slice(0, MAX_CHARS))}
@@ -175,15 +187,18 @@ export default function TranslatePage() {
           className="w-full bg-[#0a0e1a] border border-[#1f2937] rounded-2xl px-4 py-4 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-yellow-400/50 resize-none text-base leading-relaxed"
         />
 
-        {/* Char Counter */}
         <div className="flex justify-between items-center text-xs text-gray-500 mt-2 px-1">
           <span>Max {MAX_CHARS.toLocaleString()} characters per translation</span>
-          <span className={inputText.length > MAX_CHARS * 0.9 ? 'text-red-400 font-bold' : ''}>
+          <span
+            className={
+              inputText.length > MAX_CHARS * 0.9 ? 'text-red-400 font-bold' : ''
+            }
+          >
             {inputText.length.toLocaleString()} / {MAX_CHARS.toLocaleString()}
           </span>
         </div>
 
-        {/* ===== DRAMA TOGGLE + LEAD NAMES ===== */}
+        {/* DRAMA TOGGLE + LEAD NAMES */}
         <div className="bg-[#0a0e1a] border border-[#1f2937] rounded-2xl p-4 mt-4">
           <div className="flex items-center gap-3">
             <input
@@ -194,7 +209,10 @@ export default function TranslatePage() {
               className="w-5 h-5 accent-yellow-400 cursor-pointer rounded"
             />
             <span className="text-yellow-400 text-lg">👤</span>
-            <label htmlFor="drama" className="flex-1 cursor-pointer font-bold text-white">
+            <label
+              htmlFor="drama"
+              className="flex-1 cursor-pointer font-bold text-white"
+            >
               Is this a Drama / Story Recap?
             </label>
             <span className="text-xs text-gray-500 hidden sm:block">
@@ -230,7 +248,6 @@ export default function TranslatePage() {
           )}
         </div>
 
-        {/* Translate Button */}
         <button
           onClick={handleTranslate}
           disabled={loading}
@@ -251,7 +268,9 @@ export default function TranslatePage() {
       <div className="bg-[#0d1220] border border-[#1f2937] rounded-2xl p-5 mb-5">
         <div className="flex items-center gap-2 mb-4">
           <span className="text-green-400 text-xl">🌿</span>
-          <h2 className="font-bold text-white flex-1">Translated Voiceover Output:</h2>
+          <h2 className="font-bold text-white flex-1">
+            Translated Voiceover Output:
+          </h2>
           {outputText && (
             <div className="flex gap-2">
               <button
@@ -281,23 +300,36 @@ export default function TranslatePage() {
         ) : (
           <div className="bg-[#0a0e1a] border-2 border-dashed border-[#1f2937] rounded-2xl py-16 text-center">
             <div className="text-5xl text-gray-600 mb-3">文A</div>
-            <p className="text-gray-400 text-sm">Translated Burmese output will appear here</p>
-            <p className="text-gray-600 text-xs mt-2">Enter text and click Translate</p>
+            <p className="text-gray-400 text-sm">
+              Translated Burmese output will appear here
+            </p>
+            <p className="text-gray-600 text-xs mt-2">
+              Enter text and click Translate
+            </p>
           </div>
         )}
 
-        {/* TTS Studio Button */}
+        {/* ===== TTS Studio Toggle Button ===== */}
         <button
-          onClick={() => alert('TTS Studio ကို မကြာမီ ထည့်ပါမယ်!')}
+          onClick={() => setShowTTS(!showTTS)}
           disabled={!outputText}
           className="w-full mt-4 bg-green-500/10 hover:bg-green-500/20 disabled:opacity-40 disabled:cursor-not-allowed border border-green-500/40 text-green-400 font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition"
         >
           <span className="text-xl">🔊</span>
-          Send to Text-to-Speech Studio to generate audio
+          {showTTS
+            ? 'Hide Text-to-Speech Studio'
+            : 'Send to Text-to-Speech Studio to generate audio'}
         </button>
+
+        {/* ===== TTS Player ===== */}
+        {showTTS && outputText && (
+          <div className="mt-4">
+            <TTSPlayer text={outputText} defaultVoice="nilar" />
+          </div>
+        )}
       </div>
 
-      {/* ===== HISTORY CARD (Full Width) ===== */}
+      {/* ===== HISTORY CARD ===== */}
       <div className="bg-[#0d1220] border border-[#1f2937] rounded-2xl p-5">
         <div className="flex items-center gap-2 mb-4">
           <span className="text-yellow-400 text-xl">🕐</span>
@@ -326,18 +358,15 @@ export default function TranslatePage() {
                 key={item.id}
                 className="bg-[#0a0e1a] border border-[#1f2937] rounded-xl p-4"
               >
-                {/* Date + Char Count */}
                 <div className="flex justify-between items-center text-xs text-gray-500 mb-3">
                   <span>{item.time}</span>
                   <span>{item.chars} chars</span>
                 </div>
 
-                {/* Preview */}
                 <div className="text-sm text-gray-300 leading-relaxed mb-3 line-clamp-3">
                   {item.output.slice(0, 200)}...
                 </div>
 
-                {/* Action Buttons */}
                 <div className="flex gap-2 justify-end border-t border-[#1f2937] pt-3">
                   <button
                     onClick={() => recallItem(item)}
@@ -352,7 +381,11 @@ export default function TranslatePage() {
                     Copy
                   </button>
                   <button
-                    onClick={() => alert('TTS Studio ကို မကြာမီ ထည့်ပါမယ်!')}
+                    onClick={() => {
+                      setOutputText(item.output)
+                      setShowTTS(true)
+                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                    }}
                     className="text-xs font-bold text-green-400 hover:text-green-300 px-4 py-1.5"
                   >
                     TTS
@@ -363,7 +396,6 @@ export default function TranslatePage() {
           </div>
         )}
       </div>
-
     </div>
   )
 }
